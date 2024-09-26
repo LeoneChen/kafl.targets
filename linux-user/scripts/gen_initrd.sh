@@ -67,14 +67,32 @@ function inject_files()
 	echo "[*] Copying template files..."
 	cp -vr $TEMPLATE/* "$TARGET_ROOT"/
 
-	echo "[*] Copying given file args to /fuzz..."
-	echo "Install { $@ } => $TARGET_ROOT/fuzz/"
-	install -D -t $TARGET_ROOT/fuzz/ $@
+	for arg in "$@"; do
+		path=$(realpath -s $arg)
+		real_path=$(realpath $arg)
+		if [ -d "${real_path}" ]; then
+			mkdir -p $TARGET_ROOT/${real_path}
+			echo "[DIR]Install ${arg} => $TARGET_ROOT/${real_path}"
+			rsync -a ${real_path}/ $TARGET_ROOT/${real_path}/
+		else
+			echo "[*] Copying given file args to /fuzz..."
+			echo "[FILE]Install { ${arg} } => $TARGET_ROOT/fuzz/"
+			install -D -t $TARGET_ROOT/fuzz/ ${arg}
+			echo "[FILE]Link /fuzz/$(basename $arg) => $TARGET_ROOT/${real_path}"
+			mkdir -p $(dirname $TARGET_ROOT/${real_path})
+			ln -sf /fuzz/$(basename $arg) $TARGET_ROOT/${real_path}
+			if [[ "${path}" != "${real_path}" ]]; then
+				echo "[FILE]Link /fuzz/$(basename $arg) => $TARGET_ROOT/${path}"
+				mkdir -p $(dirname $TARGET_ROOT/${path})
+				ln -sf /fuzz/$(basename $arg) $TARGET_ROOT/${path}
+			fi
 
-	echo "[*] Copying any detected dependencies..."
-	for dep in $($LDDTREE $@|grep -v "interpreter => none"|sed -e s/.*' => '// -e 's/)$//'|sort -u); do
-		echo "Install $dep => $TARGET_ROOT/$dep"
-		install -D "$dep" $TARGET_ROOT/"$dep"
+			echo "[*] Copying any detected dependencies..."
+			for dep in $($LDDTREE ${arg}|grep -v "interpreter => none"|sed -e s/.*' => '// -e 's/)$//'|sort -u); do
+				echo "[DEP]Install $dep => $TARGET_ROOT/$dep"
+				install -D "$dep" $TARGET_ROOT/"$dep"
+			done
+		fi
 	done
 }
 
@@ -82,7 +100,7 @@ function build_image()
 {
 	echo "[*] Generating final image at $TARGET_INITRD"
 	pushd "$TARGET_ROOT" > /dev/null
-	find . -print0 | cpio --null --create --format=newc | gzip --best  > $TARGET_INITRD
+	find . -print0 | cpio --null --create --format=newc | gzip --fast  > $TARGET_INITRD
 	popd > /dev/null
 }
 

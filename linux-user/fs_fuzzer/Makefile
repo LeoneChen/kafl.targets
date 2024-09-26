@@ -25,7 +25,7 @@ asan: $(TARGET)
 ../vmcall/vmcall:
 	$(MAKE) -C $$(dirname $@)
 
-$(TARGET): $(LIBNYX_AGENT_BUILD)
+$(TARGET): LIBNYX_AGENT_BUILD
 $(TARGET): src/$(TARGET).c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
